@@ -34,3 +34,18 @@ def get_period_label(month_offset: int) -> str:
     base_date = datetime.datetime.now()
     target = base_date + datetime.timedelta(days=month_offset * 30)
     return f"M{month_offset} ({target.strftime('%b %Y')})"
+
+
+def format_currency(amount: float, show_symbol: bool = True) -> str:
+    """Format amount with Rs symbol and Indian numbering."""
+    if show_symbol:
+        return format_inr(amount, show_symbol=True)
+    return format_currency_plain(amount)
+
+
+def format_percentage(value: float, show_sign: bool = True) -> str:
+    """Format a ratio or rate as percentage string."""
+    pct = value * 100
+    if show_sign and pct >= 0:
+        return f"+{pct:.1f}%"
+    return f"{pct:.1f}%"
