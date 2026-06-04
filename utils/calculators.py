@@ -137,3 +137,45 @@ def compute_inhand_from_ctc(ctc_annual, basic_pct, hra_pct, special_pct, pf_pct,
         "tds_monthly": round(tds_monthly, 2),
         "net_inhand_monthly": round(net_inhand, 2)
     }
+
+
+# Aliases for backward/forward compatibility
+# Pages may import with either 'compute_' or 'calculate_' prefix
+
+def calculate_emi(principal, annual_rate, tenure_months):
+    """Alias for compute_emi.*"""
+    return compute_emi(principal, annual_rate, tenure_months)
+
+
+def calculate_sip_maturity(monthly, annual_return_pct, years):
+    """Alias for compute_sip_maturity.*"""
+    return compute_sip_maturity(monthly, annual_return_pct, years)
+
+
+def calculate_fd_maturity(principal, annual_rate, years):
+    """Estimate FD maturity value (compound annually).*"""
+    if annual_rate <= 0 or years <= 0 or principal <= 0:
+        return {"maturity_value": principal, "interest_earned": 0.0, "total_return": 0.0}
+    r = annual_rate / 100
+    maturity_value = round(principal * ((1 + r) ** years), 2)
+    interest_earned = round(maturity_value - principal, 2)
+    total_return = round((interest_earned / principal) * 100, 2)
+    return {
+        "maturity_value": maturity_value,
+        "interest_earned": interest_earned,
+        "total_return": total_return
+    }
+
+
+def calculate_remaining_balance(principal, annual_rate, tenure_months, months_paid=0):
+    """Estimate remaining balance after some months of EMI payments.*"""
+    if months_paid <= 0:
+        return round(principal, 2)
+    r = annual_rate / 12 / 100
+    n = tenure_months
+    remaining = principal * ((1 + r) ** months_paid)
+    if r > 0:
+        emi = compute_emi(principal, annual_rate, n)
+        paid = emi * ((1 + r) ** months_paid - 1) / r
+        remaining = principal * ((1 + r) ** months_paid) - paid
+    return round(max(remaining, 0), 2)
