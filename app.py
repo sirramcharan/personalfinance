@@ -1,4 +1,4 @@
-"""Personal Finance Tracker - Single File App (all pages rendered internally)."""
+"""Personal Finance Tracker - Single file App (all pages rendered internally)."""
 
 import streamlit as st
 import pandas as pd
@@ -7,9 +7,9 @@ from datetime import datetime
 import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils.data_manager import load_data, save_data
+from utils.data_manager import DataManager
 
-# ── Page config ───────────────────────────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Personal Finance Tracker",
     page_icon="💰",
@@ -17,566 +17,487 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── CSS ──────────────────────────────────────────────────────────────────────
+# ── CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 * { font-family: 'Inter', sans-serif; }
 .stApp { background: linear-gradient(135deg,#050510 0%,#0a0e24 50%,#050510 100%); background-attachment:fixed; }
-[data-testid="stSidebar"] { background: rgba(8,10,20,0.97) !important; border-right:1px solid rgba(0,212,255,0.08); }
+[data-testid="stSidebar"] { background: rgba(8,10,20,0.97); border-right:1px solid rgba(0,212,255,0.08); }
 .kpi { background:rgba(20,25,45,0.55); border:1px solid rgba(0,212,255,0.12); border-radius:14px; padding:18px 20px; }
 .glass { background:rgba(20,25,45,0.55); border:1px solid rgba(0,212,255,0.12); border-radius:14px; padding:18px 22px; margin-bottom:8px; }
 .accent1 { color:#00d4ff !important; }
 .accent2 { color:#00ff9d !important; }
 .accent3 { color:#ffd93d !important; }
 .del-btn > button { background: linear-gradient(135deg,#ff4757,#ff6b6b) !important; border:none !important; border-radius:6px !important; color:white !important; font-weight:600 !important; padding: 2px 10px !important; font-size:0.85em !important; }
-.stButton>button {
-    background:linear-gradient(135deg,#00d4ff 0%,#7b61ff 100%) !important;
-    border:none !important; border-radius:8px !important; color:white !important; font-weight:600 !important;
-}
+.stButton>button { background:linear-gradient(135deg,#00d4ff 0%,#7b61ff 100%) !important; border:none !important; border-radius:8px !important; color:white !important; font-weight:600 !important; }
 .stButton>button:hover { opacity:0.85 !important; }
 [data-testid="stMetricValue"] { color:#00d4ff !important; }
 div[data-testid="stNumberInput"] input, div[data-testid="stTextInput"] input {
-    background:rgba(15,20,35,0.8) !important; border:1px solid rgba(255,255,255,0.1) !important;
-    color:#e0e6ed !important; border-radius:6px !important;
-}
+background:rgba(15,20,35,0.8) !important; border:1px solid rgba(255,255,255,0.1) !important;
+color:#e0e6ed !important; border-radius:6px !important; }
+.stAlert-success { background: linear-gradient(135deg, rgba(0,255,157,0.15), rgba(0,212,255,0.1)) !important; border: 2px solid #00ff9d !important; border-radius: 10px !important; }
+.stAlert-success [data-testid="stAlertContent"] { color: #00ff9d !important; font-weight: 600 !important; }
+.profile-badge { background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(123,97,255,0.2)); border:1px solid rgba(0,212,255,0.3); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Session state ───────────────────────────────────────────────────────────────────
+# ── Session state ─────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-data = load_data()
-for key in ["income_records", "expense_records"]:
-    if key not in data:
-        data[key] = []
-        save_data(data)
+# Initialize DataManager
+if "dm" not in st.session_state:
+    st.session_state.dm = DataManager()
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+dm = st.session_state.dm
+data = dm.data
+profile_name = dm.active_profile_name
+
+# ── Helpers ───────────────────────────────────────────────────────────
+def fmt(v): return f"{v:,.0f}"
+def plotly_dark():
+    return dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font_color="#e0e6ed", margin=dict(l=10,r=10,t=30,b=10),
+        legend=dict(bgcolor="rgba(0,0,0,0)"))
+
+# ── HOME ──────────────────────────────────────────────────────────────
+def page_home():
+    st.markdown("""
+<div style='text-align:center;padding:30px 0 10px;'>
+<div style='font-size:3em;'>💰</div>
+<h1 style='background:linear-gradient(90deg,#00d4ff,#00ff9d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;'>Personal Finance Tracker</h1>
+<p style='color:#9aa7b7;font-size:1.1em;'>AI-Powered Finance Assistant for Smart Money Management</p>
+</div>""", unsafe_allow_html=True)
+    with st.expander("📌 Quick Start Guide", expanded=False):
+        st.write("1. **Dashboard** - See your financial snapshot at a glance\n2. **Income** - Track all sources of income\n3. **Expenses** - Monitor fixed and variable expenses\n4. **Savings** - Build emergency fund & track SIPs\n5. **Loan** - Manage your education loan\n6. **Profile & Defaults** - Configure your profile & categories")
+
+# ── DASHBOARD ─────────────────────────────────────────────────────────
+def page_dashboard():
+    p = dm.get_profile()
+    inc = dm.get_income()
+    exp = dm.get_expenses()
+    ln = dm.get_loan()
+    sav = dm.get_savings()
+    nw = dm.get_net_worth()
+
+    total_fixed = sum(exp["fixed"].values())
+    total_variable = sum(exp["variable"].values())
+    total_expenses = total_fixed + total_variable
+    monthly_savings = inc["salary_monthly"] - total_expenses
+    savings_rate = (monthly_savings / inc["salary_monthly"] * 100) if inc["salary_monthly"] else 0
+
+    st.markdown(f"""<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
+<span class='profile-badge'>👤 Viewing: <span class='accent1'>{profile_name}</span>'s data</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<h3 style='color:#e0e6ed;'>📊 Financial Dashboard</h3><hr style='border-color:rgba(0,212,255,0.2);'>""", unsafe_allow_html=True)
+
+    c1,c2,c3,c4 = st.columns(4)
+    with c1:
+        st.markdown(f"<div class='kpi'><div style='color:#9aa7b7;font-size:0.85em;'>MONTHLY INCOME</div><div style='font-size:1.8em;color:#00ff9d;'>Rs {fmt(inc['salary_monthly'])}</div><div style='color:#9aa7b7;font-size:0.75em;'>Salary</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='kpi'><div style='color:#9aa7b7;font-size:0.85em;'>MONTHLY EXPENSES</div><div style='font-size:1.8em;color:#ff6b6b;'>Rs {fmt(total_expenses)}</div><div style='color:#9aa7b7;font-size:0.75em;'>Fixed + Variable</div></div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div class='kpi'><div style='color:#9aa7b7;font-size:0.85em;'>MONTHLY SAVINGS</div><div style='font-size:1.8em;color:#ffd93d;'>Rs {fmt(max(0, monthly_savings))}</div><div style='color:#9aa7b7;font-size:0.75em;'>Savings Rate: {savings_rate:.0f}%</div></div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"<div class='kpi'><div style='color:#9aa7b7;font-size:0.85em;'>LOAN BALANCE</div><div style='font-size:1.8em;color:#ff6b6b;'>Rs {fmt(nw['liabilities'])}</div><div style='color:#9aa7b7;font-size:0.75em;'>{ln['status'].title()}</div></div>", unsafe_allow_html=True)
+
+    st.markdown("""<br>""", unsafe_allow_html=True)
+    c1,c2 = st.columns(2)
+    with c1:
+        st.markdown("""<h4 class='accent1'>Expense Breakdown</h4>""", unsafe_allow_html=True)
+        fixed_df = pd.DataFrame(list(exp["fixed"].items()), columns=["Category","Amount"])
+        fig_fixed = px.pie(fixed_df, values="Amount", names="Category", hole=0.5, color_discrete_sequence=px.colors.qualitative.Set3)
+        fig_fixed.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="#e0e6ed")
+        st.plotly_chart(fig_fixed, use_container_width=True, config={"displayModeBar":False})
+    with c2:
+        st.markdown("""<h4 class='accent1'>Variable Expenses</h4>""", unsafe_allow_html=True)
+        var_df = pd.DataFrame(list(exp["variable"].items()), columns=["Category","Amount"])
+        fig_var = px.bar(var_df, x="Category", y="Amount", color="Amount", color_continuous_scale=["#00d4ff","#7b61ff"])
+        fig_var.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="#e0e6ed", showlegend=False)
+        st.plotly_chart(fig_var, use_container_width=True, config={"displayModeBar":False})
+
+# ── INCOME ────────────────────────────────────────────────────────────
+def page_income():
+    inc = dm.get_income()
+    p = dm.get_profile()
+
+    st.markdown(f"""<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
+<span class='profile-badge'>👤 Viewing: <span class='accent1'>{profile_name}</span>'s data</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<h3 style='color:#e0e6ed;'>💵 Income Tracker</h3><hr style='border-color:rgba(0,212,255,0.2);'>""", unsafe_allow_html=True)
+
+    st.markdown(f"""<div class='glass'><div style='color:#9aa7b7;font-size:0.85em;'>MONTHLY SALARY</div><div style='font-size:2em;color:#00ff9d;'>Rs {fmt(inc['salary_monthly'])}</div></div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("<h4 class='accent1'>➕ Add Income Record</h4>", unsafe_allow_html=True)
+    with st.form("add_income"):
+        col1,col2,col3 = st.columns(3)
+        with col1:
+            source = st.text_input("Source", placeholder="e.g. Freelance, Bonus, Interest")
+        with col2:
+            amount = st.number_input("Amount (Rs)", min_value=0.0, step=100.0)
+        with col3:
+            date = st.date_input("Date", datetime.now())
+        col4,_ = st.columns([1,3])
+        with col4:
+            submitted = st.form_submit_button("➕ Add Income", use_container_width=True)
+        if submitted:
+            if source.strip() and amount > 0:
+                record = {"source": source.strip(), "amount": float(amount), "date": date.strftime("%Y-%m-%d")}
+                dm.add_income_record(record)
+                st.success(f"✅ Added Rs {fmt(amount)} from {source.strip()}!")
+                st.rerun()
+            else:
+                st.error("Please fill in all fields.")
+
+    records = dm.get_income_records()
+    if records:
+        st.markdown("---")
+        st.markdown("<h4 class='accent1'>📋 Income History</h4>", unsafe_allow_html=True)
+        df = pd.DataFrame(records)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+# ── EXPENSES ──────────────────────────────────────────────────────────
+def page_expenses():
+    exp = dm.get_expenses()
+    p = dm.get_profile()
+
+    st.markdown(f"""<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
+<span class='profile-badge'>👤 Viewing: <span class='accent1'>{profile_name}</span>'s data</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<h3 style='color:#e0e6ed;'>💸 Expense Tracker</h3><hr style='border-color:rgba(0,212,255,0.2);'>""", unsafe_allow_html=True)
+
+    col1,col2 = st.columns(2)
+    with col1:
+        st.markdown("<h4 class='accent2'>Fixed Expenses</h4>", unsafe_allow_html=True)
+        for cat, amt in exp["fixed"].items():
+            st.markdown(f"<div class='glass'><span style='color:#e0e6ed;'>{cat.replace('_',' ').title()}</span><span style='float:right;color:#00ff9d;font-weight:600;'>Rs {fmt(amt)}</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='glass' style='border-color:rgba(0,255,157,0.3);'><span style='color:#00ff9d;font-weight:600;'>TOTAL FIXED</span><span style='float:right;color:#00ff9d;font-weight:600;'>Rs {fmt(sum(exp['fixed'].values()))}</span></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown("<h4 class='accent3'>Variable Expenses</h4>", unsafe_allow_html=True)
+        for cat, amt in exp["variable"].items():
+            st.markdown(f"<div class='glass'><span style='color:#e0e6ed;'>{cat.replace('_',' ').title()}</span><span style='float:right;color:#ffd93d;font-weight:600;'>Rs {fmt(amt)}</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='glass' style='border-color:rgba(255,217,61,0.3);'><span style='color:#ffd93d;font-weight:600;'>TOTAL VARIABLE</span><span style='float:right;color:#ffd93d;font-weight:600;'>Rs {fmt(sum(exp['variable'].values()))}</span></div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("<h4 class='accent1'>➕ Add Expense Record</h4>", unsafe_allow_html=True)
+    with st.form("add_expense"):
+        col1,col2,col3,col4 = st.columns(4)
+        with col1:
+            category = st.selectbox("Category", exp["fixed"].keys())
+        with col2:
+            exp_type = st.selectbox("Type", ["fixed", "variable"])
+        with col3:
+            amount = st.number_input("Amount (Rs)", min_value=0.0, step=100.0)
+        with col4:
+            date = st.date_input("Date", datetime.now())
+        col5,_ = st.columns([1,3])
+        with col5:
+            submitted = st.form_submit_button("➕ Add Expense", use_container_width=True)
+        if submitted:
+            if amount > 0:
+                record = {"category": category, "amount": float(amount), "type": exp_type, "date": date.strftime("%Y-%m-%d")}
+                dm.add_expense_record(record)
+                st.success(f"✅ Added Rs {fmt(amount)} - {category.replace('_',' ').title()} ({exp_type})!")
+                st.rerun()
+            else:
+                st.error("Please enter a valid amount.")
+
+    records = dm.get_expense_records()
+    if records:
+        st.markdown("---")
+        st.markdown("<h4 class='accent1'>📋 Expense History</h4>", unsafe_allow_html=True)
+        df = pd.DataFrame(records)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+# ── SAVINGS ───────────────────────────────────────────────────────────
+def page_savings():
+    sav = dm.get_savings()
+    p = dm.get_profile()
+
+    st.markdown(f"""<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
+<span class='profile-badge'>👤 Viewing: <span class='accent1'>{profile_name}</span>'s data</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<h3 style='color:#e0e6ed;'>🏦 Savings & Investments</h3><hr style='border-color:rgba(0,212,255,0.2);'>""", unsafe_allow_html=True)
+
+    progress = min(100, sav["current_emergency"] / sav["emergency_fund_target"] * 100)
+    st.markdown(f"""<div class='glass'><div style='display:flex;justify-content:space-between;align-items:center;'>
+<div><span style='color:#9aa7b7;font-size:0.85em;'>Emergency Fund</span><br><span style='font-size:1.5em;color:#00ff9d;'>Rs {fmt(sav['current_emergency'])} / Rs {fmt(sav['emergency_fund_target'])}</span></div>
+<div style='text-align:right;'><span style='color:#00d4ff;font-weight:600;'>{progress:.0f}%</span></div></div>
+<div style='background:rgba(0,0,0,0.3);border-radius:8px;margin-top:10px;'><div style='background:linear-gradient(90deg,#00ff9d,#00d4ff);height:8px;border-radius:8px;width:{progress}%;'></div></div></div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("<h4 class='accent1'>⚙️ Update Savings</h4>", unsafe_allow_html=True)
+    with st.form("update_savings"):
+        c1,c2,c3,c4 = st.columns(4)
+        with c1:
+            new_emergency = st.number_input("Current Emergency (Rs)", value=sav["current_emergency"], step=5000.0)
+        with c2:
+            new_target = st.number_input("Target (Rs)", value=sav["emergency_fund_target"], step=10000.0)
+        with c3:
+            new_sip = st.number_input("SIP Monthly (Rs)", value=sav["sip_monthly"], step=1000.0)
+        with c4:
+            new_sip_rate = st.number_input("SIP Rate (% p.a.)", value=sav["sip_rate_annual"], step=0.5)
+        col5,_ = st.columns([1,3])
+        with col5:
+            saved = st.form_submit_button("💾 Save Savings", use_container_width=True)
+        if saved:
+            sav["current_emergency"] = float(new_emergency)
+            sav["emergency_fund_target"] = float(new_target)
+            sav["sip_monthly"] = float(new_sip)
+            sav["sip_rate_annual"] = float(new_sip_rate)
+            dm.save()
+            st.success("✅ Savings details updated!")
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("<h4 class='accent1'>📈 SIP Projection (10 years)</h4>", unsafe_allow_html=True)
+    P = sav["sip_monthly"]
+    r = sav["sip_rate_annual"] / 12 / 100
+    n = 120
+    if r > 0:
+        fv = P * ((1+r)**n - 1) / r * (1+r)
+    else:
+        fv = P * n
+    total_invested = P * n
+    c1,c2,c3 = st.columns(3)
+    with c1:
+        st.markdown(f"<div class='glass' style='text-align:center;'><div style='color:#9aa7b7;font-size:0.85em;'>Total Invested</div><div style='font-size:1.8em;color:#00d4ff;'>Rs {fmt(total_invested)}</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='glass' style='text-align:center;'><div style='color:#9aa7b7;font-size:0.85em;'>Wealth Gained</div><div style='font-size:1.8em;color:#00ff9d;'>Rs {fmt(fv - total_invested)}</div></div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div class='glass' style='text-align:center;'><div style='color:#9aa7b7;font-size:0.85em;'>Maturity Value</div><div style='font-size:1.8em;color:#ffd93d;'>Rs {fmt(fv)}</div></div>", unsafe_allow_html=True)
+
+# ── LOAN ──────────────────────────────────────────────────────────────
+def compute_emi(principal, rate, months):
+    r = rate / 12 / 100
+    if r == 0: return principal / months
+    return principal * r * (1+r)**months / ((1+r)**months - 1)
+
+def page_loan():
+    ln = dm.get_loan()
+    p = dm.get_profile()
+
+    st.markdown(f"""<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
+<span class='profile-badge'>👤 Viewing: <span class='accent1'>{profile_name}</span>'s data</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<h3 style='color:#e0e6ed;'>📋 Loan Manager</h3><hr style='border-color:rgba(0,212,255,0.2);'>""", unsafe_allow_html=True)
+
+    emi = compute_emi(ln["principal"], ln["interest_rate_annual"], ln["tenure_months"])
+    total_payable = emi * ln["tenure_months"]
+    total_interest = total_payable - ln["principal"]
+
+    c1,c2,c3,c4 = st.columns(4)
+    with c1:
+        st.markdown(f"<div class='glass'><div style='color:#9aa7b7;font-size:0.85em;'>PRINCIPAL</div><div style='font-size:1.5em;color:#00d4ff;'>Rs {fmt(ln['principal'])}</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='glass'><div style='color:#9aa7b7;font-size:0.85em;'>INTEREST RATE</div><div style='font-size:1.5em;color:#ffd93d;'>{ln['interest_rate_annual']}% p.a.</div></div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div class='glass'><div style='color:#9aa7b7;font-size:0.85em;'>TENURE</div><div style='font-size:1.5em;color:#00ff9d;'>{ln['tenure_months']} months</div></div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"<div class='glass'><div style='color:#9aa7b7;font-size:0.85em;'>EMI</div><div style='font-size:1.5em;color:#ff6b6b;'>Rs {fmt(emi)}</div></div>", unsafe_allow_html=True)
+
+    st.markdown(f"<div class='glass'><div style='color:#9aa7b7;font-size:0.85em;'>Total Payable: Rs {fmt(total_payable)} | Total Interest: Rs {fmt(total_interest)} | Status: {ln['status'].title()}</div></div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("<h4 class='accent1'>⚙️ Update Loan Details</h4>", unsafe_allow_html=True)
+    with st.form("update_loan"):
+        c1,c2,c3,c4 = st.columns(4)
+        with c1:
+            new_balance = st.number_input("Current Balance (Rs)", value=ln["current_balance"], step=10000.0)
+        with c2:
+            new_rate = st.number_input("Interest Rate (%)", value=ln["interest_rate_annual"], step=0.1)
+        with c3:
+            new_tenure = st.number_input("Tenure (months)", value=ln["tenure_months"], step=1)
+        with c4:
+            new_status = st.selectbox("Status", ["moratorium", "active", "closed"], index=["moratorium", "active", "closed"].index(ln["status"]))
+        col5,_ = st.columns([1,3])
+        with col5:
+            saved = st.form_submit_button("💾 Save Loan", use_container_width=True)
+        if saved:
+            ln["current_balance"] = float(new_balance)
+            ln["interest_rate_annual"] = float(new_rate)
+            ln["tenure_months"] = int(new_tenure)
+            ln["status"] = new_status
+            dm.save()
+            st.success("✅ Loan details updated!")
+            st.rerun()
+
+# ── SETTINGS ──────────────────────────────────────────────────────────
+def page_settings():
+    global data, profile_name
+    p = dm.get_profile()
+    inc = dm.get_income()
+    exp = dm.get_expenses()
+
+    st.markdown(f"""<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
+<span class='profile-badge'>👤 Viewing: <span class='accent1'>{profile_name}</span>'s data</span></div>""", unsafe_allow_html=True)
+    st.markdown("""<h3 style='color:#e0e6ed;'>⚙️ Profile & Defaults</h3><hr style='border-color:rgba(0,212,255,0.2);'>""", unsafe_allow_html=True)
+
+    tabs = st.tabs(["👤 Profile & Income", "📦 Fixed Expenses", "🎲 Variable Expenses"])
+
+    with tabs[0]:
+        st.markdown("<h4 class='accent1'>Edit Profile</h4>", unsafe_allow_html=True)
+        with st.form("profile_form"):
+            c1,c2,c3,c4 = st.columns(4)
+            with c1:
+                new_name = st.text_input("Name", value=p.get("name", profile_name))
+            with c2:
+                new_location = st.text_input("Location", value=p.get("location", ""))
+            with c3:
+                new_salary = st.number_input("Monthly Salary (Rs)", value=inc.get("salary_monthly", 0), step=1000.0)
+            with c4:
+                new_rent = st.number_input("Rent (Rs)", value=p.get("rent", 0), step=500.0)
+            c5,c6,c7 = st.columns(3)
+            with c5:
+                new_food = st.number_input("Food (Rs)", value=p.get("food", 0), step=500.0)
+            with c6:
+                new_transfer = st.number_input("Transfer to Parents (Rs)", value=p.get("transfer_to_parents", 0), step=1000.0)
+            with c7:
+                _ = st.empty()
+            _,col_btn,_ = st.columns([2,1,2])
+            with col_btn:
+                saved = st.form_submit_button("💾 Save Profile", use_container_width=True)
+            if saved:
+                p["name"] = new_name.strip()
+                p["location"] = new_location.strip()
+                p["rent"] = float(new_rent)
+                p["food"] = float(new_food)
+                p["transfer_to_parents"] = float(new_transfer)
+                inc["salary_monthly"] = float(new_salary)
+                dm.save()
+                if new_name.strip() != profile_name:
+                    profile_name = new_name.strip()
+                st.success("✅ Profile & income updated!")
+                st.rerun()
+
+    with tabs[1]:
+        st.markdown("<h4 class='accent2'>Fixed Expenses</h4>", unsafe_allow_html=True)
+        updated_fixed = {}
+        for cat, amt in exp["fixed"].items():
+            c1,c2 = st.columns([2,1])
+            with c1:
+                new_val = st.number_input(f"{cat.replace('_',' ').title()}", value=float(amt), step=100.0, key=f"fix_{cat}")
+            updated_fixed[cat] = new_val
+        col_save,col_del = st.columns(2)
+        with col_save:
+            if st.button("💾 Save All Fixed Expenses", key="save_fixed", use_container_width=True):
+                exp["fixed"].update(updated_fixed)
+                dm.save()
+                st.success("✅ Fixed expenses saved!")
+                st.rerun()
+        with col_del:
+            delete_fixed = []
+            for cat in exp["fixed"]:
+                if st.button("❌", key=f"del_fix_{cat}", help=f"Remove {cat}"):
+                    delete_fixed.append(cat)
+            if delete_fixed:
+                for cat in delete_fixed:
+                    del exp["fixed"][cat]
+                dm.save()
+                st.success(f"✅ Removed: {', '.join(delete_fixed)}")
+                st.rerun()
+        st.markdown("---")
+        st.markdown("<h4 class='accent2'>➕ Add New Fixed Expense</h4>", unsafe_allow_html=True)
+        with st.form("add_fixed"):
+            c1,c2 = st.columns(2)
+            with c1:
+                new_cat_name = st.text_input("Category Name", placeholder="e.g. OTT, Gym, Coffee")
+            with c2:
+                new_cat_amt = st.number_input("Monthly Amount (Rs)", min_value=0.0, step=100.0)
+            if st.form_submit_button("➕ Add Fixed Expense", use_container_width=True):
+                if new_cat_name.strip():
+                    key = new_cat_name.strip().lower().replace(" ","_")
+                    exp["fixed"][key] = float(new_cat_amt)
+                    dm.save()
+                    st.success(f"✅ Added '{new_cat_name}' — Rs {fmt(new_cat_amt)}/month")
+                    st.rerun()
+                else:
+                    st.error("Please enter a category name.")
+
+    with tabs[2]:
+        st.markdown("<h4 class='accent3'>Variable Expenses</h4>", unsafe_allow_html=True)
+        updated_var = {}
+        for cat, amt in exp["variable"].items():
+            c1,c2 = st.columns([2,1])
+            with c1:
+                new_val = st.number_input(f"{cat.replace('_',' ').title()}", value=float(amt), step=100.0, key=f"var_{cat}")
+            updated_var[cat] = new_val
+        col_save2,col_del2 = st.columns(2)
+        with col_save2:
+            if st.button("💾 Save All Variable Expenses", key="save_var", use_container_width=True):
+                exp["variable"].update(updated_var)
+                dm.save()
+                st.success("✅ Variable expenses saved!")
+                st.rerun()
+        with col_del2:
+            delete_var = []
+            for cat in exp["variable"]:
+                if st.button("❌", key=f"del_var_{cat}", help=f"Remove {cat}"):
+                    delete_var.append(cat)
+            if delete_var:
+                for cat in delete_var:
+                    del exp["variable"][cat]
+                dm.save()
+                st.success(f"✅ Removed: {', '.join(delete_var)}")
+                st.rerun()
+        st.markdown("---")
+        st.markdown("<h4 class='accent3'>➕ Add New Variable Expense</h4>", unsafe_allow_html=True)
+        with st.form("add_variable"):
+            c1,c2 = st.columns(2)
+            with c1:
+                new_var_name = st.text_input("Category Name", placeholder="e.g. OTT, Cab, Coffee")
+            with c2:
+                new_var_amt = st.number_input("Monthly Amount (Rs)", min_value=0.0, step=100.0)
+            if st.form_submit_button("➕ Add Variable Expense", use_container_width=True):
+                if new_var_name.strip():
+                    key = new_var_name.strip().lower().replace(" ","_")
+                    exp["variable"][key] = float(new_var_amt)
+                    dm.save()
+                    st.success(f"✅ Added '{new_var_name}' — Rs {fmt(new_var_amt)}/month")
+                    st.rerun()
+                else:
+                    st.error("Please enter a category name.")
+
+# ── SIDEBAR ───────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
-        <div style='text-align:center;padding:12px 0 6px 0;'>
-            <div style='font-size:2em;'>🤖</div>
-            <p style='color:#00d4ff;font-weight:600;margin:4px 0;font-size:1em;'>AI Finance Assistant</p>
-        </div>
-    """, unsafe_allow_html=True)
+<div style='text-align:center;padding:12px 0 6px 0;'>
+<div style='font-size:2em;'>🤖</div>
+<p style='color:#00d4ff;font-weight:600;margin:4px 0;font-size:1em;'>AI Finance Assistant</p>
+</div>""", unsafe_allow_html=True)
     st.markdown("---")
+
+    # Profile Switcher
+    st.markdown("<p style='color:#00ff9d;font-weight:600;font-size:0.9em;'>👤 SELECT PROFILE</p>", unsafe_allow_html=True)
+    profile_names = dm.profile_names
+    selected_profile = st.selectbox("", profile_names, index=profile_names.index(dm.active_profile_name), key="profile_select", label_visibility="collapsed")
+    if selected_profile != dm.active_profile_name:
+        dm.switch_profile(selected_profile)
+        st.session_state.dm = dm
+        st.cache_data.clear()
+        st.rerun()
+
+    # Profile badge showing current profile
+    st.markdown(f"""<div class='profile-badge' style='text-align:center;'>👤 Viewing: <span class='accent1'><b>{dm.active_profile_name}</b></span></div>""", unsafe_allow_html=True)
+
     pages = [
-        ("📊 Dashboard",        "Dashboard"),
-        ("💰 Income",          "Income"),
-        ("💸 Expenses",         "Expenses"),
-        ("🐖 Savings",          "Savings"),
-        ("🏦 Loan Manager",     "Loan"),
+        ("📊 Dashboard", "Dashboard"),
+        ("💵 Income", "Income"),
+        ("💸 Expenses", "Expenses"),
+        ("🏦 Savings", "Savings"),
+        ("📋 Loan Manager", "Loan"),
         ("⚙️ Profile & Defaults", "Settings"),
     ]
     for label, key in pages:
         if st.button(label, key=f"nav_{key}", use_container_width=True):
             st.session_state.page = key
             st.rerun()
-    st.markdown("---")
+
     st.markdown("<div style='text-align:center;color:#7c8fa6;font-size:0.75em;'>Built with <b>Streamlit</b> · AI-Powered</div>", unsafe_allow_html=True)
 
-# ═ HELPERS ═════════════════════════════════════════════════════════════════════════════
-def fmt(v): return f"{v:,.0f}"
-def plotly_dark():
-    return dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font_color="#e0e6ed", margin=dict(l=10,r=10,t=30,b=10),
-                legend=dict(bgcolor="rgba(0,0,0,0)"))
-
-# ═ HOME ══════════════════════════════════════════════════════════════════════════════════
-def page_home():
-    st.markdown("""
-        <div style='text-align:center;padding:30px 0 10px;'>
-            <div style='font-size:3em;'>💰</div>
-            <h1 style='background:linear-gradient(90deg,#00d4ff,#00ff9d);
-                -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:6px 0;'>
-                Personal Finance Tracker</h1>
-            <p style='color:#7c8fa6;'>Your money, your control</p>
-        </div>
-    """, unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    cols = st.columns(6)
-    nav_map = [
-        ("📊 Dashboard","Dashboard"),("💰 Income","Income"),("💸 Expenses","Expenses"),
-        ("🐖 Savings","Savings"),("🏦 Loan","Loan"),("⚙️ Defaults","Settings")
-    ]
-    for col,(lbl,pg) in zip(cols, nav_map):
-        with col:
-            if st.button(lbl, use_container_width=True, key=f"home_{pg}"):
-                st.session_state.page = pg
-                st.rerun()
-
-# ═ DASHBOARD ═════════════════════════════════════════════════════════════════════════════
-def page_dashboard():
-    income_val  = data["income"]["salary_monthly"]
-    fixed_exp   = sum(data["expenses"]["fixed"].values())
-    var_exp     = sum(data["expenses"]["variable"].values())
-    total_exp   = fixed_exp + var_exp
-    savings_pot = income_val - total_exp
-    sav_rate    = (savings_pot / income_val * 100) if income_val > 0 else 0
-    profile     = data["profile"]
-
-    st.title("📊 Dashboard")
-    st.markdown(f"<p style='color:#7c8fa6;'>Welcome back, <b style='color:#00d4ff;'>{profile['name']}</b>! Here's your financial snapshot.</p>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    c1,c2,c3,c4 = st.columns(4)
-    kpis = [
-        (f"Rs {fmt(income_val)}",  "#00d4ff", "💵 Monthly Income"),
-        (f"Rs {fmt(total_exp)}",   "#ff6b6b", "🛒 Monthly Expenses"),
-        (f"Rs {fmt(savings_pot)}", "#00ff9d" if savings_pot>=0 else "#ff6b6b", "💎 Savings Potential"),
-        (f"{sav_rate:.1f}%",      "#00ff9d" if sav_rate>=20 else "#ffd93d" if sav_rate>=10 else "#ff6b6b", "📈 Savings Rate"),
-    ]
-    for col,(val,color,label) in zip([c1,c2,c3,c4], kpis):
-        with col:
-            st.markdown(f"<div class='kpi'><div style='font-size:1.8em;font-weight:700;color:{color};'>{val}</div><div style='color:#7c8fa6;font-size:0.8em;margin-top:4px;'>{label}</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    c1,c2 = st.columns(2)
-    with c1:
-        labels = list(data["expenses"]["fixed"].keys()) + list(data["expenses"]["variable"].keys())
-        values = list(data["expenses"]["fixed"].values()) + list(data["expenses"]["variable"].values())
-        if any(v>0 for v in values):
-            fig = px.pie(names=labels, values=values, hole=0.4, title="Expense Breakdown",
-                         color_discrete_sequence=px.colors.sequential.Plasma_r)
-            fig.update_layout(**plotly_dark())
-            fig.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig, use_container_width=True)
-    with c2:
-        fig2 = px.bar(x=["Income","Expenses","Savings"], y=[income_val,total_exp,max(savings_pot,0)],
-                      color=["Income","Expenses","Savings"], title="Monthly Overview",
-                      color_discrete_map={"Income":"#00d4ff","Expenses":"#ff6b6b","Savings":"#00ff9d"})
-        fig2.update_layout(**plotly_dark())
-        st.plotly_chart(fig2, use_container_width=True)
-
-    st.markdown("---")
-    st.markdown("<h4 class='accent1'>💡 Smart Insights</h4>", unsafe_allow_html=True)
-    insights = [
-        f"Savings rate is <b style='color:#00d4ff;'>{sav_rate:.1f}%</b> — target <b>20-30%</b> for strong financial health.",
-        f"Fixed expenses (Rs {fmt(fixed_exp)}) are <b>{(fixed_exp/total_exp*100 if total_exp else 0):.1f}%</b> of total spending.",
-        f"Emergency fund: <b style='color:#ffd93d;'>Rs {data['savings']['current_emergency']:,}</b> / Rs {data['savings']['emergency_fund_target']:,} target.",
-    ]
-    for i, insight in enumerate(insights, 1):
-        st.markdown(f"<div class='glass' style='border-left:3px solid #00d4ff;'><span style='color:#7c8fa6;'>{i}.</span> {insight}</div>", unsafe_allow_html=True)
-
-# ═ INCOME ══════════════════════════════════════════════════════════════════════════════════
-def page_income():
-    st.title("💰 Income Tracker")
-    records = data.get("income_records", [])
-    tab1, tab2, tab3 = st.tabs(["Overview", "Add Income", "Transaction History"])
-    now_month = datetime.now().month
-    total_income, monthly_income, by_source = 0, 0, {}
-    if records:
-        df = pd.DataFrame(records)
-        total_income = df["amount"].sum()
-        monthly_income = df[df["date"].apply(lambda x: datetime.strptime(x,"%Y-%m-%d").month == now_month)]["amount"].sum()
-        by_source = df.groupby("source")["amount"].sum().to_dict()
-    with tab1:
-        c1,c2,c3 = st.columns(3)
-        metrics = [("💵 Total Income",f"Rs {fmt(total_income)}","#00ff9d"),
-                   ("📅 This Month",f"Rs {fmt(monthly_income)}","#00d4ff"),
-                   ("📊 Sources",str(len(by_source)),"#ffd93d")]
-        for col,(label,val,color) in zip([c1,c2,c3],metrics):
-            with col:
-                st.markdown(f"<div class='kpi'><h4 class='accent1'>{label}</h4><div style='font-size:1.8em;font-weight:700;color:{color};'>{val}</div></div>", unsafe_allow_html=True)
-        st.markdown("---")
-        if by_source:
-            c1,c2 = st.columns(2)
-            with c1:
-                df_src = pd.DataFrame(list(by_source.items()),columns=["Source","Amount"])
-                fig = px.pie(df_src, values="Amount", names="Source", hole=0.4, title="Income by Source",
-                             color_discrete_sequence=["#00ff9d","#00d4ff","#ffd93d","#7b61ff","#ff6b6b"])
-                fig.update_layout(**plotly_dark())
-                fig.update_traces(textposition="inside", textinfo="percent+label")
-                st.plotly_chart(fig, use_container_width=True)
-            with c2:
-                df_t = pd.DataFrame(records)
-                df_t["month"] = df_t["date"].apply(lambda x: x[:7])
-                trend = df_t.groupby("month")["amount"].sum().reset_index()
-                fig2 = px.bar(trend, x="month", y="amount", title="Monthly Trend", color_discrete_sequence=["#00ff9d"])
-                fig2.update_layout(**plotly_dark())
-                st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("No income records yet. Add your first entry in the 'Add Income' tab.")
-    with tab2:
-        with st.form("add_income"):
-            st.subheader("Add New Income Entry")
-            c1,c2 = st.columns(2)
-            with c1:
-                source = st.selectbox("Source",["Salary","Freelance","Investments","Side Business","Bonus","Other"])
-                amount = st.number_input("Amount (Rs)", min_value=0.0, step=100.0)
-            with c2:
-                date   = st.date_input("Date", value=datetime.now().date())
-                desc   = st.text_input("Description (optional)")
-            if st.form_submit_button("➕ Add Income", use_container_width=True):
-                if amount > 0:
-                    data["income_records"].append({"source":source,"amount":float(amount),"date":str(date),"description":desc})
-                    save_data(data)
-                    st.success(f"✅ Added Rs {fmt(amount)} from {source}!")
-                    st.rerun()
-                else:
-                    st.error("Please enter a valid amount.")
-    with tab3:
-        if records:
-            df_all = pd.DataFrame(records)
-            st.dataframe(df_all[["date","source","amount","description"]], use_container_width=True)
-            st.download_button("📥 Download CSV", df_all.to_csv(index=False), "income_records.csv", "text/csv")
-        else:
-            st.info("No income records found.")
-
-# ═ EXPENSES ═════════════════════════════════════════════════════════════════════════════
-def page_expenses():
-    st.title("💸 Expenses Tracker")
-    records = data.get("expense_records", [])
-    tab1, tab2, tab3 = st.tabs(["Overview", "Add Expense", "Transaction History"])
-    now_month = datetime.now().month
-    total_exp, monthly_exp, by_cat, by_type = 0, 0, {}, {}
-    if records:
-        df = pd.DataFrame(records)
-        total_exp   = df["amount"].sum()
-        monthly_exp = df[df["date"].apply(lambda x: datetime.strptime(x,"%Y-%m-%d").month==now_month)]["amount"].sum()
-        by_cat  = df.groupby("category")["amount"].sum().to_dict()
-        by_type = df.groupby("type")["amount"].sum().to_dict()
-    with tab1:
-        c1,c2,c3 = st.columns(3)
-        fixed_v = by_type.get("Fixed",0); var_v = by_type.get("Variable",0)
-        for col,(label,val,color) in zip([c1,c2,c3],[
-            ("💵 Total Expenses",f"Rs {fmt(total_exp)}","#ff6b6b"),
-            ("📅 This Month",f"Rs {fmt(monthly_exp)}","#ffd93d"),
-            ("🔒 Fixed / 📦 Variable",f"Rs {fmt(fixed_v)} / Rs {fmt(var_v)}","#7b61ff")
-        ]):
-            with col:
-                st.markdown(f"<div class='kpi'><h4 class='accent1'>{label}</h4><div style='font-size:1.6em;font-weight:700;color:{color};'>{val}</div></div>", unsafe_allow_html=True)
-        st.markdown("---")
-        if by_cat:
-            c1,c2 = st.columns(2)
-            with c1:
-                df_cat = pd.DataFrame(list(by_cat.items()),columns=["Category","Amount"])
-                fig = px.pie(df_cat, values="Amount", names="Category", hole=0.4, title="Expense Breakdown",
-                             color_discrete_sequence=["#ff6b6b","#ffd93d","#7b61ff","#4ECDC4","#00ff9d","#ff8fab"])
-                fig.update_layout(**plotly_dark())
-                fig.update_traces(textposition="inside", textinfo="percent+label")
-                st.plotly_chart(fig, use_container_width=True)
-            with c2:
-                df_t = pd.DataFrame(records)
-                df_t["month"] = df_t["date"].apply(lambda x: x[:7])
-                trend = df_t.groupby("month")["amount"].sum().reset_index()
-                fig2 = px.bar(trend, x="month", y="amount", title="Monthly Trend", color_discrete_sequence=["#ff6b6b"])
-                fig2.update_layout(**plotly_dark())
-                st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("No expense records yet. Add your first entry in the 'Add Expense' tab.")
-    with tab2:
-        with st.form("add_expense"):
-            st.subheader("Add New Expense")
-            c1,c2 = st.columns(2)
-            with c1:
-                category = st.selectbox("Category",["Rent","Food","Transport","Utilities","Entertainment","Shopping","Healthcare","Education","EMI","Other"])
-                exp_type = st.selectbox("Type",["Fixed","Variable"])
-            with c2:
-                amount = st.number_input("Amount (Rs)", min_value=0.0, step=50.0)
-                date   = st.date_input("Date", value=datetime.now().date())
-            desc = st.text_input("Description (optional)")
-            if st.form_submit_button("➕ Add Expense", use_container_width=True):
-                if amount > 0:
-                    data["expense_records"].append({"category":category,"type":exp_type,"amount":float(amount),"date":str(date),"description":desc})
-                    save_data(data)
-                    st.success(f"✅ Added Rs {fmt(amount)} - {category} ({exp_type})!")
-                    st.rerun()
-                else:
-                    st.error("Please enter a valid amount.")
-    with tab3:
-        if records:
-            df_all = pd.DataFrame(records)
-            st.dataframe(df_all[["date","category","type","amount","description"]], use_container_width=True)
-            st.download_button("📥 Download CSV", df_all.to_csv(index=False), "expense_records.csv", "text/csv")
-        else:
-            st.info("No expense records found.")
-
-# ═ SAVINGS ══════════════════════════════════════════════════════════════════════════════════
-def page_savings():
-    st.title("🐖 Savings Manager")
-    savings = data["savings"]
-    income_val = data["income"]["salary_monthly"]
-    total_exp  = sum(data["expenses"]["fixed"].values()) + sum(data["expenses"]["variable"].values())
-    savings_pot = income_val - total_exp
-    sav_rate = (savings_pot/income_val*100) if income_val > 0 else 0
-    tab1, tab2 = st.tabs(["Overview & Analysis", "Update Savings"])
-    with tab1:
-        c1,c2,c3 = st.columns(3)
-        ef_pct = min(savings["current_emergency"]/savings["emergency_fund_target"]*100, 100) if savings["emergency_fund_target"] else 0
-        for col,(label,val,color) in zip([c1,c2,c3],[
-            ("💎 Monthly Savings Potential",f"Rs {fmt(savings_pot)}","#00ff9d" if savings_pot>=0 else "#ff6b6b"),
-            ("📈 Savings Rate",f"{sav_rate:.1f}%","#00ff9d" if sav_rate>=20 else "#ffd93d" if sav_rate>=10 else "#ff6b6b"),
-            ("🆘 Emergency Fund",f"{ef_pct:.0f}% funded","#00d4ff")
-        ]):
-            with col:
-                st.markdown(f"<div class='kpi'><h4 class='accent1'>{label}</h4><div style='font-size:1.8em;font-weight:700;color:{color};'>{val}</div></div>", unsafe_allow_html=True)
-        st.markdown("---")
-        st.markdown("<h4 class='accent1'>📊 50/30/20 Rule Analysis</h4>", unsafe_allow_html=True)
-        needs_budget   = income_val * 0.50
-        wants_budget   = income_val * 0.30
-        savings_budget = income_val * 0.20
-        fixed_exp = sum(data["expenses"]["fixed"].values())
-        var_exp   = sum(data["expenses"]["variable"].values())
-        rows = [
-            {"Category":"Needs (50%)",  "Budget":needs_budget,   "Actual":fixed_exp,  "Status":"✅ Good" if fixed_exp<=needs_budget   else "⚠️ Over"},
-            {"Category":"Wants (30%)",  "Budget":wants_budget,   "Actual":var_exp,    "Status":"✅ Good" if var_exp<=wants_budget     else "⚠️ Over"},
-            {"Category":"Savings (20%)","Budget":savings_budget, "Actual":savings_pot,"Status":"✅ Good" if savings_pot>=savings_budget else "⚠️ Below Target"},
-        ]
-        st.dataframe(pd.DataFrame(rows).style.format({"Budget":"Rs {:,.0f}","Actual":"Rs {:,.0f}"}), use_container_width=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<h4 class='accent1'>📈 SIP Projection</h4>", unsafe_allow_html=True)
-        sip_m = savings["sip_monthly"]; rate = savings["sip_rate_annual"]/12/100
-        projections = []
-        for yr in [1,3,5,10]:
-            n = yr*12
-            mat = sip_m * (((1+rate)**n - 1)/rate) * (1+rate) if rate > 0 else sip_m*n
-            projections.append({"Years":yr,"Invested":sip_m*n,"Maturity Value":mat,"Returns":mat-sip_m*n})
-        df_sip = pd.DataFrame(projections)
-        fig = px.bar(df_sip, x="Years", y=["Invested","Returns"], barmode="stack",
-                     title=f"SIP Growth (Rs {fmt(sip_m)}/month @ {savings['sip_rate_annual']}%)",
-                     color_discrete_map={"Invested":"#00d4ff","Returns":"#00ff9d"})
-        fig.update_layout(**plotly_dark())
-        st.plotly_chart(fig, use_container_width=True)
-    with tab2:
-        with st.form("update_savings"):
-            st.subheader("Update Savings Details")
-            c1,c2 = st.columns(2)
-            with c1:
-                new_emergency = st.number_input("Current Emergency Fund (Rs)", min_value=0.0, value=float(savings["current_emergency"]), step=1000.0)
-                new_ef_target = st.number_input("Emergency Fund Target (Rs)", min_value=0.0, value=float(savings["emergency_fund_target"]), step=5000.0)
-            with c2:
-                new_sip      = st.number_input("Monthly SIP Amount (Rs)", min_value=0.0, value=float(savings["sip_monthly"]), step=500.0)
-                new_sip_rate = st.number_input("Expected SIP Return (% p.a.)", min_value=0.0, max_value=30.0, value=float(savings["sip_rate_annual"]), step=0.5)
-            if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                data["savings"]["current_emergency"]     = new_emergency
-                data["savings"]["emergency_fund_target"] = new_ef_target
-                data["savings"]["sip_monthly"]           = new_sip
-                data["savings"]["sip_rate_annual"]       = new_sip_rate
-                save_data(data)
-                st.success("✅ Savings details updated!")
-                st.rerun()
-
-# ═ LOAN ═════════════════════════════════════════════════════════════════════════════════════
-def page_loan():
-    st.title("🏦 Loan Manager")
-    loan = data["loan"]
-    def compute_emi(principal, annual_rate, months):
-        if annual_rate == 0: return principal / months
-        r = annual_rate / 12 / 100
-        return principal * r * (1+r)**months / ((1+r)**months - 1)
-    tab1, tab2 = st.tabs(["Loan Overview", "Update Loan Details"])
-    with tab1:
-        emi = compute_emi(loan["current_balance"], loan["interest_rate_annual"], loan["tenure_months"])
-        total_payable  = emi * loan["tenure_months"]
-        total_interest = total_payable - loan["current_balance"]
-        c1,c2,c3,c4 = st.columns(4)
-        for col,(label,val,color) in zip([c1,c2,c3,c4],[
-            ("🏷️ Loan Balance",f"Rs {fmt(loan['current_balance'])}","#ff6b6b"),
-            ("📅 Monthly EMI",f"Rs {fmt(emi)}","#ffd93d"),
-            ("💸 Total Payable",f"Rs {fmt(total_payable)}","#7b61ff"),
-            ("📊 Total Interest",f"Rs {fmt(total_interest)}","#ff6b6b"),
-        ]):
-            with col:
-                st.markdown(f"<div class='kpi'><h4 class='accent1'>{label}</h4><div style='font-size:1.5em;font-weight:700;color:{color};'>{val}</div></div>", unsafe_allow_html=True)
-        st.markdown("---")
-        st.markdown("<h4 class='accent1'>📊 Amortization Preview (First 12 months)</h4>", unsafe_allow_html=True)
-        rows, bal = [], loan["current_balance"]
-        r = loan["interest_rate_annual"]/12/100
-        for m in range(1, min(13, loan["tenure_months"]+1)):
-            int_part  = bal * r
-            prin_part = emi - int_part
-            bal -= prin_part
-            rows.append({"Month":m,"EMI":emi,"Principal":prin_part,"Interest":int_part,"Balance":max(bal,0)})
-        df_amort = pd.DataFrame(rows)
-        fig = px.bar(df_amort, x="Month", y=["Principal","Interest"], barmode="stack",
-                     title="EMI Split — Principal vs Interest",
-                     color_discrete_map={"Principal":"#00d4ff","Interest":"#ff6b6b"})
-        fig.update_layout(**plotly_dark())
-        st.plotly_chart(fig, use_container_width=True)
-        st.subheader("Amortization Table")
-        st.dataframe(df_amort.style.format({"EMI":"Rs {:,.0f}","Principal":"Rs {:,.0f}","Interest":"Rs {:,.0f}","Balance":"Rs {:,.0f}"}), use_container_width=True)
-    with tab2:
-        with st.form("update_loan"):
-            st.subheader("Update Loan Details")
-            c1,c2 = st.columns(2)
-            with c1:
-                new_balance = st.number_input("Current Balance (Rs)", min_value=0.0, value=float(loan["current_balance"]), step=10000.0)
-                new_rate    = st.number_input("Interest Rate (% p.a.)", min_value=0.0, max_value=30.0, value=float(loan["interest_rate_annual"]), step=0.1)
-            with c2:
-                new_tenure  = st.number_input("Remaining Tenure (months)", min_value=1, max_value=360, value=int(loan["tenure_months"]), step=1)
-                new_status  = st.selectbox("Loan Status",["moratorium","active","prepaid"],
-                                           index=["moratorium","active","prepaid"].index(loan["status"]))
-            if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                data["loan"]["current_balance"]     = new_balance
-                data["loan"]["interest_rate_annual"] = new_rate
-                data["loan"]["tenure_months"]        = new_tenure
-                data["loan"]["status"]               = new_status
-                save_data(data)
-                st.success("✅ Loan details updated!")
-                st.rerun()
-
-# ═ SETTINGS / PROFILE & DEFAULTS ════════════════════════════════════════════════════════
-def page_settings():
-    st.title("⚙️ Profile & Defaults")
-    st.markdown("<p style='color:#7c8fa6;'>Edit your base profile, monthly income, and all default expense categories. Changes instantly reflect in the Dashboard.</p>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    tab1, tab2, tab3 = st.tabs(["👤 Profile & Income", "🔒 Fixed Expenses", "📦 Variable Expenses"])
-
-    # ---- TAB 1: Profile & Income ----------------------------------------
-    with tab1:
-        st.markdown("<h4 class='accent1'>👤 Personal Profile</h4>", unsafe_allow_html=True)
-        profile = data["profile"]
-        with st.form("profile_form"):
-            c1, c2 = st.columns(2)
-            with c1:
-                new_name     = st.text_input("Your Name", value=profile.get("name", ""))
-                new_location = st.text_input("Location", value=profile.get("location", ""))
-            with c2:
-                new_salary   = st.number_input(
-                    "💰 Monthly Salary / Stipend (Rs)",
-                    min_value=0.0,
-                    value=float(data["income"]["salary_monthly"]),
-                    step=500.0,
-                    help="This is your primary monthly income used across all calculations."
-                )
-            if st.form_submit_button("💾 Save Profile & Income", use_container_width=True):
-                data["profile"]["name"]            = new_name
-                data["profile"]["location"]        = new_location
-                data["income"]["salary_monthly"]   = new_salary
-                save_data(data)
-                st.success("✅ Profile & income updated!")
-                st.rerun()
-
-    # ---- TAB 2: Fixed Expenses ------------------------------------------
-    with tab2:
-        st.markdown("<h4 class='accent1'>🔒 Fixed Monthly Expenses</h4>", unsafe_allow_html=True)
-        st.caption("These are recurring monthly costs (rent, EMI, etc.). Edit amounts or remove categories you don't have.")
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        fixed = data["expenses"]["fixed"]
-        fixed_keys = list(fixed.keys())
-        updated_fixed = {}
-        delete_fixed  = []
-
-        # Render each fixed expense as an editable row
-        for cat in fixed_keys:
-            c1, c2, c3 = st.columns([3, 2, 1])
-            with c1:
-                st.markdown(f"<div style='padding-top:8px;color:#e0e6ed;font-weight:500;'>{cat.replace('_',' ').title()}</div>", unsafe_allow_html=True)
-            with c2:
-                new_val = st.number_input(
-                    f"Amount", min_value=0.0,
-                    value=float(fixed[cat]),
-                    step=100.0, key=f"fixed_{cat}",
-                    label_visibility="collapsed"
-                )
-                updated_fixed[cat] = new_val
-            with c3:
-                if st.button("❌", key=f"del_fixed_{cat}", help=f"Remove {cat}"):
-                    delete_fixed.append(cat)
-
-        if delete_fixed:
-            for cat in delete_fixed:
-                del data["expenses"]["fixed"][cat]
-            save_data(data)
-            st.success(f"✅ Removed: {', '.join(delete_fixed)}")
-            st.rerun()
-
-        st.markdown("---")
-        # Save all edits at once
-        if st.button("💾 Save All Fixed Expenses", key="save_fixed", use_container_width=True):
-            data["expenses"]["fixed"].update(updated_fixed)
-            save_data(data)
-            st.success("✅ Fixed expenses saved!")
-            st.rerun()
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<h4 class='accent1'>➕ Add New Fixed Expense</h4>", unsafe_allow_html=True)
-        with st.form("add_fixed"):
-            c1, c2 = st.columns(2)
-            with c1:
-                new_cat_name = st.text_input("Category Name", placeholder="e.g. Gym, Insurance, Netflix")
-            with c2:
-                new_cat_amt  = st.number_input("Monthly Amount (Rs)", min_value=0.0, step=100.0)
-            if st.form_submit_button("➕ Add Fixed Expense", use_container_width=True):
-                if new_cat_name.strip():
-                    key = new_cat_name.strip().lower().replace(" ","_")
-                    data["expenses"]["fixed"][key] = float(new_cat_amt)
-                    save_data(data)
-                    st.success(f"✅ Added '{new_cat_name}' — Rs {fmt(new_cat_amt)}/month")
-                    st.rerun()
-                else:
-                    st.error("Please enter a category name.")
-
-    # ---- TAB 3: Variable Expenses ---------------------------------------
-    with tab3:
-        st.markdown("<h4 class='accent1'>📦 Variable Monthly Expenses</h4>", unsafe_allow_html=True)
-        st.caption("These are flexible / discretionary costs. Edit amounts, set to 0 if you don't spend here, or remove entirely.")
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        variable = data["expenses"]["variable"]
-        var_keys = list(variable.keys())
-        updated_var = {}
-        delete_var  = []
-
-        for cat in var_keys:
-            c1, c2, c3 = st.columns([3, 2, 1])
-            with c1:
-                st.markdown(f"<div style='padding-top:8px;color:#e0e6ed;font-weight:500;'>{cat.replace('_',' ').title()}</div>", unsafe_allow_html=True)
-            with c2:
-                new_val = st.number_input(
-                    f"Amount", min_value=0.0,
-                    value=float(variable[cat]),
-                    step=100.0, key=f"var_{cat}",
-                    label_visibility="collapsed"
-                )
-                updated_var[cat] = new_val
-            with c3:
-                if st.button("❌", key=f"del_var_{cat}", help=f"Remove {cat}"):
-                    delete_var.append(cat)
-
-        if delete_var:
-            for cat in delete_var:
-                del data["expenses"]["variable"][cat]
-            save_data(data)
-            st.success(f"✅ Removed: {', '.join(delete_var)}")
-            st.rerun()
-
-        st.markdown("---")
-        if st.button("💾 Save All Variable Expenses", key="save_var", use_container_width=True):
-            data["expenses"]["variable"].update(updated_var)
-            save_data(data)
-            st.success("✅ Variable expenses saved!")
-            st.rerun()
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<h4 class='accent1'>➕ Add New Variable Expense</h4>", unsafe_allow_html=True)
-        with st.form("add_variable"):
-            c1, c2 = st.columns(2)
-            with c1:
-                new_var_name = st.text_input("Category Name", placeholder="e.g. OTT, Cab, Coffee")
-            with c2:
-                new_var_amt  = st.number_input("Monthly Amount (Rs)", min_value=0.0, step=100.0)
-            if st.form_submit_button("➕ Add Variable Expense", use_container_width=True):
-                if new_var_name.strip():
-                    key = new_var_name.strip().lower().replace(" ","_")
-                    data["expenses"]["variable"][key] = float(new_var_amt)
-                    save_data(data)
-                    st.success(f"✅ Added '{new_var_name}' — Rs {fmt(new_var_amt)}/month")
-                    st.rerun()
-                else:
-                    st.error("Please enter a category name.")
-
-# ═ ROUTER ═════════════════════════════════════════════════════════════════════════════════════
+# ── ROUTER ────────────────────────────────────────────────────────────
 page = st.session_state.page
-if   page == "Dashboard": page_dashboard()
-elif page == "Income":    page_income()
-elif page == "Expenses":  page_expenses()
-elif page == "Savings":   page_savings()
-elif page == "Loan":      page_loan()
-elif page == "Settings":  page_settings()
-else:                     page_home()
+if   page == "Dashboard":  page_dashboard()
+elif page == "Income":     page_income()
+elif page == "Expenses":    page_expenses()
+elif page == "Savings":     page_savings()
+elif page == "Loan":        page_loan()
+elif page == "Settings":    page_settings()
+else:                       page_home()
