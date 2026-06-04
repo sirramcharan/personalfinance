@@ -107,6 +107,13 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+# ============= Initialize session state =============
+if "dm" not in st.session_state:
+    st.session_state.dm = DataManager()
+
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "1_Dashboard"
+
 # ============= Sidebar Navigation =============
 with st.sidebar:
     st.markdown(f"""
@@ -127,12 +134,10 @@ with st.sidebar:
     }
 
     for page, label in nav.items():
-        selected = st.sidebar.button(
-            label, key=page, use_container_width=True,
-            type="primary" if st.navigation(None) is not None and page in str(st.navigation(None)) else "secondary"
-        )
-        if selected:
-            passage = ""
+        is_active = st.session_state.current_page == page
+        btn_type = "primary" if is_active else "secondary"
+        if st.sidebar.button(label, key=page, use_container_width=True, type=btn_type):
+            st.session_state.current_page = page
 
     st.markdown("---")
     st.markdown(f"""
@@ -144,12 +149,3 @@ with st.sidebar:
 # ============= Main Content Area =============
 # Each page lives in the pages/ folder
 # Streamlit auto-routes based on file names in pages/
-
-if __name__ == "__main__":
-    # Initialize data manager in session
-    if "dm" not in st.session_state:
-        st.session_state.dm = DataManager()
-
-    # The pages/ folder auto-handles navigation
-    # This file just acts as the host
-    pass
