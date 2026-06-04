@@ -189,3 +189,39 @@ class DataManager:
     def update_loan(self, updates: dict):
         self._data["loan"].update(updates)
         self.save()
+
+
+
+# =========== Config Functions ===========
+
+DEFAULT_CONFIG = {
+    "app_name": "Personal Finance Tracker",
+    "currency": "INR",
+    "theme": "dark",
+    "default_savings_rate": 20,
+    "tax_bracket": 30,
+    "emergency_months": 6,
+}
+
+
+def load_config(path: str = None) -> dict:
+    """Load app configuration from JSON file or return defaults."""
+    path = path or os.path.join(DATA_DIR, "finance_config.json")
+    _ensure_data_dir()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                # Merge with defaults for any missing keys
+                return {**DEFAULT_CONFIG, **config}
+        except (json.JSONDecodeError, IOError):
+            return DEFAULT_CONFIG.copy()
+    return DEFAULT_CONFIG.copy()
+
+
+def save_config(config: dict, path: str = None):
+    """Save configuration to JSON file."""
+    path = path or os.path.join(DATA_DIR, "finance_config.json")
+    _ensure_data_dir()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
