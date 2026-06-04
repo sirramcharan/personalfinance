@@ -1,15 +1,19 @@
-"""Data persistence and state management for the finance app."""
+"""Data persistence and state management for the Personal Finance Tracker."""
 
 import json
 import os
 from datetime import datetime
 from typing import Any
 
-# Storage path (local JSON for now, can extend to Google Sheets)
+# ── Storage ──────────────────────────────────────────────────────────
 DATA_DIR = "data"
 DEFAULT_FILE = os.path.join(DATA_DIR, "finance_data.json")
 
-# User defaults (Charan's profile)
+def _ensure_data_dir():
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
+# ── Default Data (Charan's Profile) ───────────────────────────────────
 DEFAULT_DATA = {
     "profile": {
         "name": "Charan",
@@ -21,7 +25,7 @@ DEFAULT_DATA = {
     },
     "income": {
         "salary_monthly": 65000,
-        "other_income": [],  # [{"source": "...", "amount": 0, "recurring": True}]
+        "other_income": [],
     },
     "expenses": {
         "fixed": {
@@ -38,18 +42,20 @@ DEFAULT_DATA = {
             "shopping": 2000,
             "miscellaneous": 2000,
         },
-        "categories": ["rent", "transfer_to_parents", "food_groceries", "transport",
-                       "phone_bill", "utilities", "dining_out", "entertainment",
-                       "shopping", "miscellaneous"],
+        "categories": [
+            "rent", "transfer_to_parents", "food_groceries",
+            "transport", "phone_bill", "utilities",
+            "dining_out", "entertainment", "shopping", "miscellaneous"
+        ],
     },
     "loan": {
         "type": "education",
         "principal": 2500000,
         "interest_rate_annual": 9.5,
         "tenure_months": 120,
-        "emi_start_date": None,  # e.g., "2026-10-01" or "2027-10-01"
+        "emi_start_date": None,
         "current_balance": 2500000,
-        "status": "moratorium",  # moratorium, active, prepaid
+        "status": "moratorium",
         "gold_collateral_value": 0,
         "gold_loan_rate": 10.5,
     },
@@ -58,45 +64,17 @@ DEFAULT_DATA = {
         "current_emergency": 50000,
         "sip_monthly": 10000,
         "sip_rate_annual": 12,
-        "investments": [],  # [{"name": "...", "amount": 0, "type": "..."}]
+        "investments": [],
     },
-    "goals": [],  # [{"name": "...", "target_amount": 0, "current": 0, "deadline": "..."}]
+    "goals": [],
     "net_worth": {
         "cash": 50000,
         "bank_balance": 100000,
         "investments": 200000,
         "liabilities": 2500000,
     },
-    "history": [],  # [{"date": "...", "type": "income|expense|transfer", "amount": 0, "category": "..."}]
+    "history": [],
 }
-
-
-def _ensure_data_dir():
-    if not os.path.exists(DATA_DIR):
-        os.makedirs(DATA_DIR)
-
-
-def load_data(path: str = None) -> dict:
-    """Load data from JSON file or return defaults."""
-    path = path or DEFAULT_FILE
-    _ensure_data_dir()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Merge with defaults for any missing keys
-                return _deep_merge(DEFAULT_DATA, data)
-        except (json.JSONDecodeError, IOError):
-            return DEFAULT_DATA.copy()
-    return DEFAULT_DATA.copy()
-
-
-def save_data(data: dict, path: str = None):
-    """Save data to JSON file."""
-    path = path or DEFAULT_FILE
-    _ensure_data_dir()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -110,11 +88,35 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+# ── Load & Save ───────────────────────────────────────────────────────
+def load_data(path: str = None) -> dict:
+    """Load data from JSON file or return defaults."""
+    path = path or DEFAULT_FILE
+    _ensure_data_dir()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return _deep_merge(DEFAULT_DATA, data)
+        except (json.JSONDecodeError, IOError):
+            return _deep_merge(DEFAULT_DATA, {})
+    return _deep_merge(DEFAULT_DATA, {})
+
+
+def save_data(data: dict, path: str = None):
+    """Save data to JSON file."""
+    path = path or DEFAULT_FILE
+    _ensure_data_dir()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
 def reset_to_defaults(path: str = None):
     """Reset data file to defaults."""
-    save_data(DEFAULT_DATA.copy(), path or DEFAULT_FILE)
+    save_data(_deep_merge(DEFAULT_DATA, {}), path or DEFAULT_FILE)
 
 
+# ── DataManager Class ─────────────────────────────────────────────────
 class DataManager:
     """Central data manager with session state integration."""
 
@@ -191,9 +193,7 @@ class DataManager:
         self.save()
 
 
-
-# =========== Config Functions ===========
-
+# ── Config Functions ─────────────────────────────────────────────────
 DEFAULT_CONFIG = {
     "app_name": "Personal Finance Tracker",
     "currency": "INR",
@@ -212,8 +212,7 @@ def load_config(path: str = None) -> dict:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 config = json.load(f)
-                # Merge with defaults for any missing keys
-                return {**DEFAULT_CONFIG, **config}
+            return {**DEFAULT_CONFIG, **config}
         except (json.JSONDecodeError, IOError):
             return DEFAULT_CONFIG.copy()
     return DEFAULT_CONFIG.copy()
