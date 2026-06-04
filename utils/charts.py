@@ -176,3 +176,25 @@ def make_indicator(value: float, title: str = "", prefix: str = "Rs ") -> go.Fig
         margin=dict(l=20, r=20, t=20, b=20),
     )
     return fig
+
+
+def make_kpi_card(label: str = "", value: float = 0, prefix: str = "Rs ", color: str = None) -> go.Figure:
+    """Create a KPI card gauge indicator."""
+    fig = go.Figure(
+        go.Indicator(
+            mode="number",
+            value=value,                                                                                
+            title=dict(text=label, font=dict(size=16, color=THEME["text"])),
+            number=dict(
+                font=dict(size=36, color=color or THEME["accent1"]),
+                prefix=prefix,
+                valueformat=".0f",
+            ),
+        )
+    )
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=150,
+        margin=dict(l=20, r=20, t=20, b=20),
+    )
+    return fig
