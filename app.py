@@ -228,13 +228,13 @@ def page_savings():
     with st.form("update_savings"):
         c1,c2,c3,c4 = st.columns(4)
         with c1:
-            new_emergency = st.number_input("Current Emergency (Rs)", value=sav["current_emergency"], step=5000.0)
+            new_emergency = st.number_input("Current Emergency (Rs)", value=float(sav["current_emergency"]), step=5000.0)
         with c2:
-            new_target = st.number_input("Target (Rs)", value=sav["emergency_fund_target"], step=10000.0)
+            new_target = st.number_input("Target (Rs)", value=float(sav["emergency_fund_target"]), step=10000.0)
         with c3:
-            new_sip = st.number_input("SIP Monthly (Rs)", value=sav["sip_monthly"], step=1000.0)
+            new_sip = st.number_input("SIP Monthly (Rs)", value=float(sav["sip_monthly"]), step=1000.0)
         with c4:
-            new_sip_rate = st.number_input("SIP Rate (% p.a.)", value=sav["sip_rate_annual"], step=0.5)
+            new_sip_rate = st.number_input("SIP Rate (% p.a.)", value=float(sav["sip_rate_annual"]), step=0.5)
         col5,_ = st.columns([1,3])
         with col5:
             saved = st.form_submit_button("💾 Save Savings", use_container_width=True)
@@ -300,11 +300,11 @@ def page_loan():
     with st.form("update_loan"):
         c1,c2,c3,c4 = st.columns(4)
         with c1:
-            new_balance = st.number_input("Current Balance (Rs)", value=ln["current_balance"], step=10000.0)
+            new_balance = st.number_input("Current Balance (Rs)", value=float(ln["current_balance"]), step=10000.0)
         with c2:
-            new_rate = st.number_input("Interest Rate (%)", value=ln["interest_rate_annual"], step=0.1)
+            new_rate = st.number_input("Interest Rate (%)", value=float(ln["interest_rate_annual"]), step=0.1)
         with c3:
-            new_tenure = st.number_input("Tenure (months)", value=ln["tenure_months"], step=1)
+            new_tenure = st.number_input("Tenure (months)", value=int(ln["tenure_months"]), step=1)
         with c4:
             new_status = st.selectbox("Status", ["moratorium", "active", "closed"], index=["moratorium", "active", "closed"].index(ln["status"]))
         col5,_ = st.columns([1,3])
@@ -341,14 +341,14 @@ def page_settings():
             with c2:
                 new_location = st.text_input("Location", value=p.get("location", ""))
             with c3:
-                new_salary = st.number_input("Monthly Salary (Rs)", value=inc.get("salary_monthly", 0), step=1000.0)
+                new_salary = st.number_input("Monthly Salary (Rs)", value=float(inc.get("salary_monthly", 0)), step=1000.0)
             with c4:
-                new_rent = st.number_input("Rent (Rs)", value=p.get("rent", 0), step=500.0)
+                new_rent = st.number_input("Rent (Rs)", value=float(p.get("rent", 0)), step=500.0)
             c5,c6,c7 = st.columns(3)
             with c5:
-                new_food = st.number_input("Food (Rs)", value=p.get("food", 0), step=500.0)
+                new_food = st.number_input("Food (Rs)", value=float(p.get("food", 0)), step=500.0)
             with c6:
-                new_transfer = st.number_input("Transfer to Parents (Rs)", value=p.get("transfer_to_parents", 0), step=1000.0)
+                new_transfer = st.number_input("Transfer to Parents (Rs)", value=float(p.get("transfer_to_parents", 0)), step=1000.0)
             with c7:
                 _ = st.empty()
             _,col_btn,_ = st.columns([2,1,2])
@@ -375,24 +375,23 @@ def page_settings():
             with c1:
                 new_val = st.number_input(f"{cat.replace('_',' ').title()}", value=float(amt), step=100.0, key=f"fix_{cat}")
             updated_fixed[cat] = new_val
-        col_save,col_del = st.columns(2)
-        with col_save:
-            if st.button("💾 Save All Fixed Expenses", key="save_fixed", use_container_width=True):
+        with st.form("save_fixed_form"):
+            st.markdown("<p style='color:#9aa7b7;font-size:0.85em;'>Click to save all fixed expense changes above.</p>", unsafe_allow_html=True)
+            if st.form_submit_button("💾 Save All Fixed Expenses", use_container_width=True):
                 exp["fixed"].update(updated_fixed)
                 dm.save()
                 st.success("✅ Fixed expenses saved!")
                 st.rerun()
-        with col_del:
-            delete_fixed = []
-            for cat in exp["fixed"]:
-                if st.button("❌", key=f"del_fix_{cat}", help=f"Remove {cat}"):
-                    delete_fixed.append(cat)
-            if delete_fixed:
-                for cat in delete_fixed:
-                    del exp["fixed"][cat]
-                dm.save()
-                st.success(f"✅ Removed: {', '.join(delete_fixed)}")
-                st.rerun()
+        st.markdown("---")
+        st.markdown("<h4 class='accent2'>🗑️ Remove Fixed Expense</h4>", unsafe_allow_html=True)
+        with st.form("delete_fixed_form"):
+            cat_to_delete = st.selectbox("Select category to remove", list(exp["fixed"].keys()), key="del_fixed_select")
+            if st.form_submit_button("❌ Remove Selected", use_container_width=True):
+                if cat_to_delete in exp["fixed"]:
+                    del exp["fixed"][cat_to_delete]
+                    dm.save()
+                    st.success(f"✅ Removed: {cat_to_delete}")
+                    st.rerun()
         st.markdown("---")
         st.markdown("<h4 class='accent2'>➕ Add New Fixed Expense</h4>", unsafe_allow_html=True)
         with st.form("add_fixed"):
@@ -419,24 +418,23 @@ def page_settings():
             with c1:
                 new_val = st.number_input(f"{cat.replace('_',' ').title()}", value=float(amt), step=100.0, key=f"var_{cat}")
             updated_var[cat] = new_val
-        col_save2,col_del2 = st.columns(2)
-        with col_save2:
-            if st.button("💾 Save All Variable Expenses", key="save_var", use_container_width=True):
+        with st.form("save_var_form"):
+            st.markdown("<p style='color:#9aa7b7;font-size:0.85em;'>Click to save all variable expense changes above.</p>", unsafe_allow_html=True)
+            if st.form_submit_button("💾 Save All Variable Expenses", use_container_width=True):
                 exp["variable"].update(updated_var)
                 dm.save()
                 st.success("✅ Variable expenses saved!")
                 st.rerun()
-        with col_del2:
-            delete_var = []
-            for cat in exp["variable"]:
-                if st.button("❌", key=f"del_var_{cat}", help=f"Remove {cat}"):
-                    delete_var.append(cat)
-            if delete_var:
-                for cat in delete_var:
-                    del exp["variable"][cat]
-                dm.save()
-                st.success(f"✅ Removed: {', '.join(delete_var)}")
-                st.rerun()
+        st.markdown("---")
+        st.markdown("<h4 class='accent3'>🗑️ Remove Variable Expense</h4>", unsafe_allow_html=True)
+        with st.form("delete_var_form"):
+            var_to_delete = st.selectbox("Select category to remove", list(exp["variable"].keys()), key="del_var_select")
+            if st.form_submit_button("❌ Remove Selected", use_container_width=True):
+                if var_to_delete in exp["variable"]:
+                    del exp["variable"][var_to_delete]
+                    dm.save()
+                    st.success(f"✅ Removed: {var_to_delete}")
+                    st.rerun()
         st.markdown("---")
         st.markdown("<h4 class='accent3'>➕ Add New Variable Expense</h4>", unsafe_allow_html=True)
         with st.form("add_variable"):
