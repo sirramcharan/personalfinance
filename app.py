@@ -36,8 +36,24 @@ st.markdown("""
 div[data-testid="stNumberInput"] input, div[data-testid="stTextInput"] input {
 background:rgba(15,20,35,0.8) !important; border:1px solid rgba(255,255,255,0.1) !important;
 color:#e0e6ed !important; border-radius:6px !important; }
-.stAlert-success { background: linear-gradient(135deg, rgba(0,255,157,0.15), rgba(0,212,255,0.1)) !important; border: 2px solid #00ff9d !important; border-radius: 10px !important; }
-.stAlert-success [data-testid="stAlertContent"] { color: #00ff9d !important; font-weight: 600 !important; }
+.save-banner {
+    background: linear-gradient(135deg, rgba(0,255,157,0.18), rgba(0,212,255,0.12));
+    border: 2px solid #00ff9d;
+    border-radius: 12px;
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    animation: fadeInDown 0.4s ease;
+}
+.save-banner .save-icon { font-size: 1.5em; }
+.save-banner .save-text { color: #00ff9d; font-weight: 700; font-size: 1em; }
+.save-banner .save-sub  { color: #9aa7b7; font-size: 0.82em; margin-top: 2px; }
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 .profile-badge { background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(123,97,255,0.2)); border:1px solid rgba(0,212,255,0.3); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
 </style>
 """, unsafe_allow_html=True)
@@ -45,6 +61,8 @@ color:#e0e6ed !important; border-radius:6px !important; }
 # ── Session state ─────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state.page = "Home"
+if "save_toast" not in st.session_state:
+    st.session_state.save_toast = None  # stores a message string when a save just happened
 
 # Initialize DataManager
 if "dm" not in st.session_state:
@@ -56,10 +74,28 @@ profile_name = dm.active_profile_name
 
 # ── Helpers ───────────────────────────────────────────────────────────
 def fmt(v): return f"{v:,.0f}"
+
+def show_save_banner(message="Changes saved successfully!", sub="Your data has been updated."):
+    """Render a green animated save confirmation banner."""
+    st.markdown(f"""
+    <div class='save-banner'>
+        <span class='save-icon'>✅</span>
+        <div>
+            <div class='save-text'>🟢 {message}</div>
+            <div class='save-sub'>{sub}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 def plotly_dark():
     return dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font_color="#e0e6ed", margin=dict(l=10,r=10,t=30,b=10),
         legend=dict(bgcolor="rgba(0,0,0,0)"))
+
+# ── Show persistent save banner at top of page if triggered ────────────────
+if st.session_state.save_toast:
+    show_save_banner(st.session_state.save_toast[0], st.session_state.save_toast[1])
+    st.session_state.save_toast = None  # clear after one render
 
 # ── HOME ──────────────────────────────────────────────────────────────
 def page_home():
@@ -144,7 +180,7 @@ def page_income():
             if source.strip() and amount > 0:
                 record = {"source": source.strip(), "amount": float(amount), "date": date.strftime("%Y-%m-%d")}
                 dm.add_income_record(record)
-                st.success(f"✅ Added Rs {fmt(amount)} from {source.strip()}!")
+                st.session_state.save_toast = ("Income record added!", f"Rs {fmt(amount)} from {source.strip()} saved.")
                 st.rerun()
             else:
                 st.error("Please fill in all fields.")
@@ -196,7 +232,7 @@ def page_expenses():
             if amount > 0:
                 record = {"category": category, "amount": float(amount), "type": exp_type, "date": date.strftime("%Y-%m-%d")}
                 dm.add_expense_record(record)
-                st.success(f"✅ Added Rs {fmt(amount)} - {category.replace('_',' ').title()} ({exp_type})!")
+                st.session_state.save_toast = ("Expense record added!", f"Rs {fmt(amount)} — {category.replace('_',' ').title()} ({exp_type}) saved.")
                 st.rerun()
             else:
                 st.error("Please enter a valid amount.")
@@ -244,7 +280,7 @@ def page_savings():
             sav["sip_monthly"] = float(new_sip)
             sav["sip_rate_annual"] = float(new_sip_rate)
             dm.save()
-            st.success("✅ Savings details updated!")
+            st.session_state.save_toast = ("Savings updated!", "Emergency fund & SIP details saved successfully.")
             st.rerun()
 
     st.markdown("---")
@@ -316,7 +352,7 @@ def page_loan():
             ln["tenure_months"] = int(new_tenure)
             ln["status"] = new_status
             dm.save()
-            st.success("✅ Loan details updated!")
+            st.session_state.save_toast = ("Loan details updated!", f"Balance, rate & tenure saved. Status: {new_status.title()}.")
             st.rerun()
 
 # ── SETTINGS ──────────────────────────────────────────────────────────
@@ -364,7 +400,7 @@ def page_settings():
                 dm.save()
                 if new_name.strip() != profile_name:
                     profile_name = new_name.strip()
-                st.success("✅ Profile & income updated!")
+                st.session_state.save_toast = ("Profile saved!", f"Name, location & income defaults updated for {new_name.strip()}.")
                 st.rerun()
 
     with tabs[1]:
@@ -380,7 +416,7 @@ def page_settings():
             if st.form_submit_button("💾 Save All Fixed Expenses", use_container_width=True):
                 exp["fixed"].update(updated_fixed)
                 dm.save()
-                st.success("✅ Fixed expenses saved!")
+                st.session_state.save_toast = ("Fixed expenses saved!", "All fixed expense amounts have been updated.")
                 st.rerun()
         st.markdown("---")
         st.markdown("<h4 class='accent2'>🗑️ Remove Fixed Expense</h4>", unsafe_allow_html=True)
@@ -390,7 +426,7 @@ def page_settings():
                 if cat_to_delete in exp["fixed"]:
                     del exp["fixed"][cat_to_delete]
                     dm.save()
-                    st.success(f"✅ Removed: {cat_to_delete}")
+                    st.session_state.save_toast = ("Category removed!", f"'{cat_to_delete}' has been deleted from fixed expenses.")
                     st.rerun()
         st.markdown("---")
         st.markdown("<h4 class='accent2'>➕ Add New Fixed Expense</h4>", unsafe_allow_html=True)
@@ -405,7 +441,7 @@ def page_settings():
                     key = new_cat_name.strip().lower().replace(" ","_")
                     exp["fixed"][key] = float(new_cat_amt)
                     dm.save()
-                    st.success(f"✅ Added '{new_cat_name}' — Rs {fmt(new_cat_amt)}/month")
+                    st.session_state.save_toast = ("Fixed expense added!", f"'{new_cat_name}' — Rs {fmt(new_cat_amt)}/month added.")
                     st.rerun()
                 else:
                     st.error("Please enter a category name.")
@@ -423,7 +459,7 @@ def page_settings():
             if st.form_submit_button("💾 Save All Variable Expenses", use_container_width=True):
                 exp["variable"].update(updated_var)
                 dm.save()
-                st.success("✅ Variable expenses saved!")
+                st.session_state.save_toast = ("Variable expenses saved!", "All variable expense amounts have been updated.")
                 st.rerun()
         st.markdown("---")
         st.markdown("<h4 class='accent3'>🗑️ Remove Variable Expense</h4>", unsafe_allow_html=True)
@@ -433,7 +469,7 @@ def page_settings():
                 if var_to_delete in exp["variable"]:
                     del exp["variable"][var_to_delete]
                     dm.save()
-                    st.success(f"✅ Removed: {var_to_delete}")
+                    st.session_state.save_toast = ("Category removed!", f"'{var_to_delete}' has been deleted from variable expenses.")
                     st.rerun()
         st.markdown("---")
         st.markdown("<h4 class='accent3'>➕ Add New Variable Expense</h4>", unsafe_allow_html=True)
@@ -448,7 +484,7 @@ def page_settings():
                     key = new_var_name.strip().lower().replace(" ","_")
                     exp["variable"][key] = float(new_var_amt)
                     dm.save()
-                    st.success(f"✅ Added '{new_var_name}' — Rs {fmt(new_var_amt)}/month")
+                    st.session_state.save_toast = ("Variable expense added!", f"'{new_var_name}' — Rs {fmt(new_var_amt)}/month added.")
                     st.rerun()
                 else:
                     st.error("Please enter a category name.")
